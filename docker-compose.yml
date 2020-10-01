@@ -37,7 +37,7 @@ services:
   gateway-container: # Here, this is where you can configure your gateway.
     # Feel free to change configuration options of this container, like the image, or the Dockerfile itself.
     build: .
-    command: homework # Changeme: Put in just so the container stays on after being started.
+    command: ["/usr/local/bin/homework"]
     ports: [ "3000:3000" ]
     networks:
       amazin-object-storage:
