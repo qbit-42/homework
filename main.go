@@ -1,25 +1,28 @@
 package main
 
 import (
-	"context"
 	"fmt"
-
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
+	"github.com/gorilla/mux"
+	"net/http"
+	//"github.com/minio/minio-go/v7"
+	//"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 func main() {
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		panic(err)
-	}
+	router := mux.NewRouter()
+	router.HandleFunc("/object/{id}", GetHandler).Methods("GET")
+	//router.HandleFunc("/object/{id}", PutHandler).Methods("PUT")
+	http.Handle("/", router)
+	http.ListenAndServe(":3000", router)
+}
 
-	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{})
-	if err != nil {
-		panic(err)
-	}
+func GetHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "ID: %v\n", id)
+}
 
-	for _, container := range containers {
-		fmt.Printf("%s %s\n", container.ID[:10], container.Image)
-	}
+func PutHandler(w http.ResponseWriter, r *http.Request) {
+
 }
