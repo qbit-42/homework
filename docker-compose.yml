@@ -37,8 +37,8 @@ services:
   gateway-container: # Here, this is where you can configure your gateway.
     # Feel free to change configuration options of this container, like the image, or the Dockerfile itself.
     build: .
-    command: ["/usr/local/bin/homework"]
-    ports: [ "3000:3000" ]
+    command: ["/homework"]
+    ports: [ "3000:3000", "40000:40000" ]
     networks:
       amazin-object-storage:
         ipv4_address: 169.253.0.5
