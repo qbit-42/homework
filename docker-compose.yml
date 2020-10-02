@@ -38,7 +38,7 @@ services:
     # Feel free to change configuration options of this container, like the image, or the Dockerfile itself.
     build: .
     command: ["/homework"]
-    ports: [ "3000:3000", "40000:40000" ]
+    ports: [ "3000:3000"]
     networks:
       amazin-object-storage:
         ipv4_address: 169.253.0.5

@@ -1,8 +1,7 @@
 package main
 
 import (
-	"github.com/carlescere/scheduler"
-	"log"
+	log "github.com/sirupsen/logrus"
 )
 
 type MinioContainer struct {
@@ -16,7 +15,10 @@ type MinioContainer struct {
 var minioContainers []MinioContainer
 
 func main() {
-	scheduler.Every(30).Seconds().Run(scanForMinioContainers)
-	setupMux()
-	log.Output(2, "Homework server started")
+	//scheduler.Every(30).Seconds().Run(scanForMinioContainers)
+	scanForMinioContainers()
+	error := setupMux()
+	if error != nil {
+		log.Fatal("Server failed to start ", error)
+	}
 }

@@ -12,14 +12,14 @@ import (
 )
 
 func scanForMinioContainers() {
-	log.Debug("Scanning for Minio containers")
+	log.Info("Scanning for Minio containers")
 	cli, err := client.NewEnvClient()
 	if err != nil {
 		panic(err) //if we can't create client then something is really wrong
 	}
 	containers := listMinioContainers(err, cli)
 	collectContainersData(containers, cli)
-	log.Debug("Found Minio containers: ", minioContainers)
+	log.Info("Found Minio containers: ", minioContainers)
 }
 
 func collectContainersData(containers []types.Container, cli *client.Client) {
