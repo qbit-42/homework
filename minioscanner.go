@@ -14,9 +14,15 @@ import (
 	"strings"
 )
 
-var bucketName string = "files"
+var bucketName = "files"
+
+//I know it was supposed to be stateless
+//but re-generating and re-configuring clients
+//on every request seemed _very_ sub-optimal
 var minioClients []minio.Client
 
+//TODO: harder problem of re-balancing existing files
+// when number of available backends changes
 func scanForMinioContainers() {
 	log.Info("Scanning for Minio containers")
 	cli, err := client.NewEnvClient()
