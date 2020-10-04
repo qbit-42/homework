@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"github.com/gorilla/mux"
@@ -20,14 +19,12 @@ func setupMux() error {
 }
 
 func PutHandler(w http.ResponseWriter, r *http.Request) {
-	id, container := prepareMinioRequest(w, r)
-
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(r.Body)
-	content := buf.String()
-	output, err := writeFile(container, id, content)
-
-	handleErrors(w, err, output)
+	id, client := prepareMinioRequest(w, r)
+	err := writeFile(client, id, r.Body, r.ContentLength)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "File %s could not be written", id)
+	}
 }
 
 func GetHandler(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +32,8 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info("Handling read request for file ", id, " onto container ", client.EndpointURL())
 	err := readFile(client, id, w)
 	if err != nil {
-		w.WriteHeader(http.StatusExpectationFailed)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "File %s could not be read", id)
 	}
 }
 
@@ -46,24 +44,14 @@ func readFile(minioClient minio.Client, objectId string, writer io.Writer) error
 		log.Error(err)
 		return err
 	}
-	written, err := io.Copy(writer, reader)
+	bytesRead, err := io.Copy(writer, reader)
 	if err != nil {
 		log.Error("Error reading file ", objectId)
 		return err
 	} else {
-		log.Info("Successfully read file: id ", objectId, ", size: ", written)
+		log.Info("Successfully read file: id ", objectId, ", size: ", bytesRead)
 	}
 	return nil
-}
-
-func handleErrors(w http.ResponseWriter, err error, output string) {
-	if err != nil {
-		w.WriteHeader(http.StatusExpectationFailed)
-		fmt.Fprintf(w, output)
-	} else {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, output)
-	}
 }
 
 func prepareMinioRequest(w http.ResponseWriter, r *http.Request) (string, minio.Client) {
@@ -77,17 +65,16 @@ func prepareMinioRequest(w http.ResponseWriter, r *http.Request) (string, minio.
 	return id, client
 }
 
-func writeFile(minioClient minio.Client, objectId string, content string) (string, error) {
+func writeFile(minioClient minio.Client, objectId string, reader io.Reader, contentLength int64) error {
 	ctx := context.Background()
 	contentType := "application/text"
 
-	reader := bytes.NewReader([]byte(content))
-	n, err := minioClient.PutObject(ctx, bucketName, objectId, reader, int64(len(content)), minio.PutObjectOptions{ContentType: contentType})
+	n, err := minioClient.PutObject(ctx, bucketName, objectId, reader, contentLength, minio.PutObjectOptions{ContentType: contentType})
 	if err != nil {
 		log.Error(err)
-		return "Error uploading file", err
+		return err
 	}
 
 	log.Info("Successfully uploaded file ", objectId, "of size ", n.Size)
-	return "Successfully written file " + objectId, nil
+	return nil
 }
