@@ -12,8 +12,6 @@ type MinioContainer struct {
 	SecretKey string
 }
 
-var minioContainers []MinioContainer
-
 func main() {
 	//scheduler.Every(30).Seconds().Run(scanForMinioContainers)
 	scanForMinioContainers()
