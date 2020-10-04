@@ -55,6 +55,7 @@ func readFile(container MinioContainer, objectId string, writer io.Writer) error
 		log.Error(err)
 		return err
 	}
+
 	//buf := new(strings.Builder)
 	//written, err := io.Copy(buf, reader)
 	//// check errors
