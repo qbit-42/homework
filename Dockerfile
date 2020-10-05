@@ -10,6 +10,5 @@ FROM alpine
 RUN apk add bash curl
 EXPOSE 3000
 WORKDIR /
-COPY --from=build-env /go/bin/dlv /
 COPY --from=build-env /homework /
 CMD ["/homework"]
