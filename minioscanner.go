@@ -10,16 +10,67 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	log "github.com/sirupsen/logrus"
 	"hash/fnv"
+	"io"
 	"strconv"
 	"strings"
 )
 
 var bucketName = "files"
 
+type MinioClient interface {
+	GetObject(objectId string) (io.Reader, error)
+	PutObject(objectId string, reader io.Reader, contentLength int64) (int64, error)
+	EnsureBucketExists() error
+	GetName() string
+}
+
+type DockerMinioClient struct {
+	actualClient minio.Client
+	bucketName   string
+	name         string
+}
+
+func (c DockerMinioClient) GetName() string {
+	return c.name
+}
+
+func (c DockerMinioClient) GetObject(objectId string) (io.Reader, error) {
+	return c.actualClient.GetObject(context.Background(), bucketName, objectId, minio.GetObjectOptions{})
+}
+
+func (c DockerMinioClient) PutObject(objectId string, reader io.Reader, contentLength int64) (int64, error) {
+	uploadInfo, err := c.actualClient.PutObject(context.Background(),
+		bucketName,
+		objectId,
+		reader,
+		contentLength,
+		minio.PutObjectOptions{ContentType: "application/text"})
+	return uploadInfo.Size, err
+}
+
+func (c DockerMinioClient) EnsureBucketExists() error {
+	ctx := context.Background()
+	log.Info("Ensuring bucket exists: ", bucketName)
+	err := c.actualClient.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
+	if err != nil {
+		// Check to see if we already own this bucket (which happens if you run this twice)
+		exists, errBucketExists := c.actualClient.BucketExists(ctx, bucketName)
+		if errBucketExists == nil && exists {
+			log.Info("We already own bucket ", bucketName)
+		} else {
+			log.Error(err)
+			return err
+		}
+	} else {
+		log.Info("Successfully created bucket ", bucketName)
+	}
+	return nil
+}
+
 //I know it was supposed to be stateless
 //but re-generating and re-configuring clients
 //on every request seemed _very_ sub-optimal
-var minioClients []minio.Client
+var minioClients []MinioClient
 
 //TODO: harder problem of re-balancing existing files
 // when number of available backends changes
@@ -60,75 +111,62 @@ func collectContainersData(containers []types.Container, cli *client.Client) {
 			SecretKey: decodeEnvVariable(containerJson.Config.Env, "MINIO_SECRET_KEY"),
 		}
 
-		client, err := prepareClient(container)
+		minioClient, err := prepareClient(container)
 		if err != nil {
 			log.Error("Cannot configure client for ", container.ID)
 		}
-		err = ensureBucketExists(client)
+		err = minioClient.EnsureBucketExists()
 		if err != nil {
-			log.Error("Cannot create/check bucket for ", client.EndpointURL())
+			log.Error("Cannot create/check bucket for ", minioClient.name)
+		} else {
+			minioClients = append(minioClients, minioClient)
 		}
-		minioClients = append(minioClients, client)
 	}
 }
 
-func prepareClient(container MinioContainer) (minio.Client, error) {
+func prepareClient(container MinioContainer) (DockerMinioClient, error) {
 	endpoint := container.IpAddress + ":" + strconv.FormatInt(int64(container.Port), 10)
 	accessKeyID := container.AccessKey
 	secretAccessKey := container.SecretKey
-	useSSL := false
-
 	// Initialize minio client object.
 	minioClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
-		Secure: useSSL,
+		Secure: false,
 	})
+	newClient := DockerMinioClient{
+		actualClient: *minioClient,
+		name:         endpoint,
+	}
 	if err != nil {
 		log.Error(err)
-		return *minioClient, err
+		return newClient, err
 	}
-	return *minioClient, err
-}
 
-func ensureBucketExists(minioClient minio.Client) error {
-	ctx := context.Background()
-	log.Info("Ensuring bucket exists: ", bucketName)
-	err := minioClient.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
-	if err != nil {
-		// Check to see if we already own this bucket (which happens if you run this twice)
-		exists, errBucketExists := minioClient.BucketExists(ctx, bucketName)
-		if errBucketExists == nil && exists {
-			log.Info("We already own bucket ", bucketName)
-		} else {
-			log.Error(err)
-			return err
-		}
-	} else {
-		log.Info("Successfully created bucket ", bucketName)
-	}
-	return nil
+	return newClient, err
 }
 
 func decodeEnvVariable(env []string, name string) string {
 	for _, line := range env {
 		if strings.HasPrefix(line, name) {
-			return line[strings.LastIndex(line, "=")+1 : len(line)]
+			return line[strings.LastIndex(line, "=")+1:]
 		}
 	}
 	return "no_value"
 }
 
 func hashId(id string) int {
-	hasher := fnv.New32a()
-	hasher.Write([]byte(id))
-	return int(hasher.Sum32())
+	hashCalc := fnv.New32a()
+	_, err := hashCalc.Write([]byte(id))
+	if err != nil {
+		return -1
+	}
+	return int(hashCalc.Sum32())
 }
 
-func getInstance(objectId string) (minio.Client, error) {
-	var client minio.Client // to return null in case o error (?)
+func getInstance(objectId string) (MinioClient, error) {
 	if len(minioClients) < 1 {
 		log.Error("No Minio containers registered")
-		return client, errors.New("no Minio containers registered")
+		return nil, errors.New("no Minio containers registered")
 	}
 	var idx = hashId(objectId) % len(minioClients)
 	return minioClients[idx], nil

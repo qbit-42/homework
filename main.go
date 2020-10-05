@@ -15,8 +15,8 @@ type MinioContainer struct {
 func main() {
 	//scheduler.Every(30).Seconds().Run(scanForMinioContainers)
 	scanForMinioContainers()
-	error := setupMux()
-	if error != nil {
-		log.Fatal("Server failed to start ", error)
+	err := setupMux()
+	if err != nil {
+		log.Fatal("Server failed to start ", err)
 	}
 }
