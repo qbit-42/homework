@@ -13,7 +13,6 @@ type MinioContainer struct {
 }
 
 func main() {
-	//scheduler.Every(30).Seconds().Run(scanForMinioContainers)
 	scanForMinioContainers()
 	err := setupMux()
 	if err != nil {

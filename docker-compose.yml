@@ -37,11 +37,15 @@ services:
   gateway-container: # Here, this is where you can configure your gateway.
     # Feel free to change configuration options of this container, like the image, or the Dockerfile itself.
     build: .
-    command: [ "/homework" ]
     ports: [ "3000:3000" ]
     networks:
       amazin-object-storage:
         ipv4_address: 169.253.0.5
+    # easiest way to make startup order correct, but it's not perfect so we add 2 second sleep
+    depends_on:
+      - amazin-object-storage-node-1
+      - amazin-object-storage-node-2
+      - amazin-object-storage-node-3
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 

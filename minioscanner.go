@@ -13,6 +13,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var bucketName = "files"
@@ -30,6 +31,10 @@ type DockerMinioClient struct {
 	name         string
 }
 
+func (c DockerMinioClient) String() string {
+	return c.name
+}
+
 func (c DockerMinioClient) GetName() string {
 	return c.name
 }
@@ -45,6 +50,9 @@ func (c DockerMinioClient) PutObject(objectId string, reader io.Reader, contentL
 		reader,
 		contentLength,
 		minio.PutObjectOptions{ContentType: "application/text"})
+	if err != nil {
+		return -1, err
+	}
 	return uploadInfo.Size, err
 }
 
@@ -75,24 +83,28 @@ var minioClients []MinioClient
 //TODO: harder problem of re-balancing existing files
 // when number of available backends changes
 func scanForMinioContainers() {
+	time.Sleep(2 * time.Second)
 	log.Info("Scanning for Minio containers")
 	cli, err := client.NewEnvClient()
 	if err != nil {
 		panic(err) //if we can't create client then something is really wrong
 	}
-	containers := listMinioContainers(err, cli)
+	containers, err := listMinioContainers(cli)
+	if err != nil {
+		panic(err) //if we can't create client then something is really wrong
+	}
 	collectContainersData(containers, cli)
 	log.Info("Prepared Minio clients: ", minioClients)
 }
 
-func listMinioContainers(err error, cli *client.Client) []types.Container {
+func listMinioContainers(cli *client.Client) ([]types.Container, error) {
 	containerListFilters := filters.NewArgs()
 	containerListFilters.Add("name", "amazin")
 	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{Filters: containerListFilters})
 	if err != nil || len(containers) < 1 {
-		log.Error("Cannot find any Minio containers under local docker daemon ", err)
+		return nil, errors.New("Cannot find any Minio containers under local docker daemon ")
 	}
-	return containers
+	return containers, nil
 }
 
 func collectContainersData(containers []types.Container, cli *client.Client) {
@@ -114,13 +126,14 @@ func collectContainersData(containers []types.Container, cli *client.Client) {
 		minioClient, err := prepareClient(container)
 		if err != nil {
 			log.Error("Cannot configure client for ", container.ID)
+			continue
 		}
 		err = minioClient.EnsureBucketExists()
 		if err != nil {
 			log.Error("Cannot create/check bucket for ", minioClient.name)
-		} else {
-			minioClients = append(minioClients, minioClient)
+			continue
 		}
+		minioClients = append(minioClients, minioClient)
 	}
 }
 
@@ -133,15 +146,14 @@ func prepareClient(container MinioContainer) (DockerMinioClient, error) {
 		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
 		Secure: false,
 	})
+	if err != nil {
+		log.Error("Cannot prepare client for ", endpoint, err)
+		return DockerMinioClient{}, err
+	}
 	newClient := DockerMinioClient{
 		actualClient: *minioClient,
 		name:         endpoint,
 	}
-	if err != nil {
-		log.Error(err)
-		return newClient, err
-	}
-
 	return newClient, err
 }
 
