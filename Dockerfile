@@ -14,4 +14,4 @@ WORKDIR /
 COPY --from=build-env /homework /
 COPY --from=build-env /go/bin/dlv /
 #CMD ["/homework"]
-CMD ["/dlv", "--listen=:40000", "--headless=true", "--api-version=2", "--accept-multiclient", "exec", "/homework"]
+CMD ["/dlv", "--listen=:40000", "--headless=true", "--api-version=2", "--continue", "--accept-multiclient", "exec", "/homework"]

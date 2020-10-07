@@ -10,6 +10,7 @@ type MinioContainer struct {
 	Port      int
 	AccessKey string
 	SecretKey string
+	Listable  string
 }
 
 func main() {

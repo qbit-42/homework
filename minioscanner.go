@@ -21,14 +21,17 @@ var bucketName = "files"
 type MinioClient interface {
 	GetObject(objectId string) (io.Reader, error)
 	PutObject(objectId string, reader io.Reader, contentLength int64) (int64, error)
+	GetAllIds() ([]string, error)
 	EnsureBucketExists() error
 	GetName() string
+	IsListable() bool
 }
 
 type DockerMinioClient struct {
 	actualClient minio.Client
 	bucketName   string
 	name         string
+	listable     string
 }
 
 func (c DockerMinioClient) String() string {
@@ -54,6 +57,21 @@ func (c DockerMinioClient) PutObject(objectId string, reader io.Reader, contentL
 		return -1, err
 	}
 	return uploadInfo.Size, err
+}
+
+func (c DockerMinioClient) GetAllIds() ([]string, error) {
+	var ids []string
+	for obj := range c.actualClient.ListObjects(context.Background(), bucketName, minio.ListObjectsOptions{}) {
+		if obj.Err != nil {
+			return nil, obj.Err
+		}
+		ids = append(ids, obj.Key)
+	}
+	return ids, nil
+}
+
+func (c DockerMinioClient) IsListable() bool {
+	return strings.Compare(c.listable, "true") == 0
 }
 
 func (c DockerMinioClient) EnsureBucketExists() error {
@@ -121,6 +139,7 @@ func collectContainersData(containers []types.Container, cli *client.Client) {
 			Port:      9000,
 			AccessKey: decodeEnvVariable(containerJson.Config.Env, "MINIO_ACCESS_KEY"),
 			SecretKey: decodeEnvVariable(containerJson.Config.Env, "MINIO_SECRET_KEY"),
+			Listable:  decodeEnvVariable(containerJson.Config.Env, "LISTABLE"),
 		}
 
 		minioClient, err := prepareClient(container)
@@ -153,17 +172,21 @@ func prepareClient(container MinioContainer) (DockerMinioClient, error) {
 	newClient := DockerMinioClient{
 		actualClient: *minioClient,
 		name:         endpoint,
+		listable:     container.Listable,
 	}
 	return newClient, err
 }
 
 func decodeEnvVariable(env []string, name string) string {
+	value := "no_value"
 	for _, line := range env {
 		if strings.HasPrefix(line, name) {
-			return line[strings.LastIndex(line, "=")+1:]
+			value = line[strings.LastIndex(line, "=")+1:]
+			break
 		}
 	}
-	return "no_value"
+	log.Info("Env var ", name, "=", value)
+	return value
 }
 
 func hashId(id string) int {

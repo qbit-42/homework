@@ -12,8 +12,26 @@ func setupMux() error {
 	router := mux.NewRouter()
 	router.HandleFunc("/object/{id}", GetHandler).Methods("GET")
 	router.HandleFunc("/object/{id}", PutHandler).Methods("PUT")
+	router.HandleFunc("/list", ListHandler).Methods("GET")
 	http.Handle("/", router)
 	return http.ListenAndServe(":3000", router)
+}
+
+func ListHandler(writer http.ResponseWriter, request *http.Request) {
+	var ids []string
+	for _, c := range minioClients {
+		log.Info("Client ", c.GetName(), " listable == ", c.IsListable())
+		if c.IsListable() {
+			allIds, err := c.GetAllIds()
+			if err != nil {
+				http.Error(writer, err.Error(), http.StatusInternalServerError)
+			}
+			ids = append(ids, allIds...)
+		}
+	}
+	for _, id := range ids {
+		fmt.Fprintln(writer, id)
+	}
 }
 
 func PutHandler(w http.ResponseWriter, r *http.Request) {

@@ -23,6 +23,7 @@ services:
     environment:
       - MINIO_ACCESS_KEY=maglev
       - MINIO_SECRET_KEY=baconpapaya
+      - LISTABLE=true
 
   amazin-object-storage-node-3:
     <<: *object-storage-node
@@ -33,6 +34,7 @@ services:
     environment:
       - MINIO_ACCESS_KEY=rendezvous
       - MINIO_SECRET_KEY=bluegreen
+      - LISTABLE=false
 
   gateway-container: # Here, this is where you can configure your gateway.
     # Feel free to change configuration options of this container, like the image, or the Dockerfile itself.
@@ -41,7 +43,7 @@ services:
     networks:
       amazin-object-storage:
         ipv4_address: 169.253.0.5
-    # easiest way to make startup order correct, but it's not perfect so we add 2 second sleep
+    # easiest way to make startup order correct, but it's not perfect
     depends_on:
       - amazin-object-storage-node-1
       - amazin-object-storage-node-2

@@ -1,0 +1,13 @@
+PUT http://localhost:3000/object/5
+
+awsde
+###
+GET http://localhost:3000/object/1
+
+###
+PUT http://localhost:3000/object/9
+
+qwerqwer
+
+###
+GET http://localhost:3000/list
